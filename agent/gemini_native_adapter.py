@@ -886,7 +886,7 @@ class GeminiNativeClient:
             raise RuntimeError(self.MISSING_KEY_ERROR)
         self.api_key, self.is_closed = api_key, False
         self.base_url = normalize_gemini_base_url(base_url)
-        self._default_headers = dict(default_headers or {})
+        self._default_headers = {k: v for k, v in (default_headers or {}).items() if isinstance(v, (str, bytes))}
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create_chat_completion))
         # read=1200: Gemini 4 hops can think for minutes; Google asks for a >=20 min read timeout (its
         # stream limit), and a shorter one cuts long-decode hops off mid-think.

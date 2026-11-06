@@ -89,10 +89,13 @@ def _swap_fallback_clients(agent, fb_client, fb_provider: str, fb_model: str, fb
     agent.client = fb_client
     # Keep provider headers resolve_provider_client() baked into fb_client (SDK: _custom_headers), else
     # later request-client rebuilds drop them and User-Agent-sentinel providers (Kimi Coding) 403.
-    fb_headers = getattr(fb_client, "_custom_headers", None) or getattr(fb_client, "default_headers", None)
+    raw_fb_headers = getattr(fb_client, "_custom_headers", None)
+    if raw_fb_headers is None:
+        raw_fb_headers = getattr(fb_client, "_default_headers", None) or getattr(fb_client, "default_headers", None)
+    fb_headers = {k: v for k, v in (raw_fb_headers or {}).items() if isinstance(v, (str, bytes))}
     agent._client_kwargs = {"api_key": credential, "base_url": fb_base_url}
     if fb_headers:
-        agent._client_kwargs["default_headers"] = dict(fb_headers)
+        agent._client_kwargs["default_headers"] = fb_headers
     if timeout is not None:
         agent._client_kwargs["timeout"] = timeout
         # Rebuild now so the timeout applies to the very next request, not only after a rotation rebuild.
