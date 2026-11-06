@@ -190,6 +190,14 @@ def _create_openai_client(*, api_key: str, base_url: str, **kwargs: Any) -> Any:
     if _aux_probe_active():
         # Availability probe: resolved credentials/base_url are the answer.
         return _AuxProbeClientStub(api_key=api_key, base_url=base_url)
+    from agent.gemini_native_adapter import GeminiNativeClient, is_native_gemini_base_url
+    if isinstance(api_key, str) and is_native_gemini_base_url(base_url):
+        return GeminiNativeClient(
+            api_key=api_key,
+            base_url=base_url,
+            default_headers=kwargs.get("default_headers"),
+            timeout=kwargs.get("timeout"),
+        )
     kwargs = {**_openai_http_client_kwargs(base_url), **kwargs}
     _apply_required_codex_headers(kwargs, access_token=api_key, base_url=base_url)
     # Hermes owns aux retry/fallback policy; the SDK default (max_retries=2) would triple

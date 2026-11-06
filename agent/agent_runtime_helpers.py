@@ -1997,7 +1997,8 @@ def create_openai_client(agent, client_kwargs: dict, *, reason: str, shared: boo
         )
         return provider_client
     from agent.auxiliary_client import _GEMINI_NATIVE_PROVIDER_NAMES
-    if agent.provider in _GEMINI_NATIVE_PROVIDER_NAMES:
+    from agent.gemini_native_adapter import is_native_gemini_base_url
+    if agent.provider in _GEMINI_NATIVE_PROVIDER_NAMES or is_native_gemini_base_url(client_kwargs.get("base_url", "")):
         client = _gemini_native_client(agent, client_kwargs, httpx_verify, reason=reason, shared=shared)
         if client is not None:
             return client
