@@ -462,6 +462,9 @@ def _build_gemini_contents(
         if parts:
             contents.append({"role": "model" if role == "assistant" else "user", "parts": parts})
     joined_system = "\n".join(part for part in system_text_parts if part).strip()
+    if joined_system:
+        from agent.message_sanitization import _sanitize_gemini_branding_text
+        joined_system = _sanitize_gemini_branding_text(joined_system)
     return _merge_alternating(contents), ({"role": "system", "parts": [{"text": joined_system}]} if joined_system else None)
 
 

@@ -132,6 +132,53 @@ _sanitize_structure_non_ascii = partial(_sanitize_structure, fix=_strip_non_asci
 _sanitize_messages_non_ascii = partial(_sanitize_messages, fix=_strip_non_ascii, deep=False)
 _sanitize_tools_non_ascii = _sanitize_structure_non_ascii
 
+_GEMINI_BRAND_PROSE_REPLACEMENTS = (
+    ("You are Hermes Agent, built by Nous Research.", "You are a helpful AI assistant."),
+    ("You are Hermes Agent, built by Nous Research", "You are a helpful AI assistant"),
+    ("You run on Hermes Agent (by Nous Research).", "You run on an AI agent."),
+    ("You run on Hermes Agent (by Nous Research)", "You run on an AI agent"),
+    ("Hermes Agent (by Nous Research)", "AI agent"),
+    ("Active Hermes profile:", "Active profile:"),
+)
+
+
+def _sanitize_gemini_branding_text(text: str) -> str:
+    for old, new in _GEMINI_BRAND_PROSE_REPLACEMENTS:
+        text = text.replace(old, new)
+    return text
+
+
+def _sanitize_gemini_message_content(content: Any) -> Any:
+    if isinstance(content, str):
+        return _sanitize_gemini_branding_text(content)
+    if isinstance(content, list):
+        for part in content:
+            if isinstance(part, dict) and isinstance(part.get("text"), str):
+                part["text"] = _sanitize_gemini_branding_text(part["text"])
+    return content
+
+
+def _sanitize_gemini_branding_outbound(api_kwargs: dict) -> None:
+    """Sanitize known branding identity prose for Gemini requests as a compatibility workaround."""
+    if isinstance(api_kwargs.get("instructions"), str):
+        api_kwargs["instructions"] = _sanitize_gemini_branding_text(api_kwargs["instructions"])
+    messages = api_kwargs.get("messages")
+    if isinstance(messages, list):
+        for msg in messages:
+            if isinstance(msg, dict) and msg.get("role") in ("system", "developer"):
+                if isinstance(msg.get("content"), str):
+                    msg["content"] = _sanitize_gemini_branding_text(msg["content"])
+                elif isinstance(msg.get("content"), list):
+                    _sanitize_gemini_message_content(msg["content"])
+    inputs = api_kwargs.get("input")
+    if isinstance(inputs, list):
+        for item in inputs:
+            if isinstance(item, dict) and item.get("role") in ("system", "developer"):
+                if isinstance(item.get("content"), str):
+                    item["content"] = _sanitize_gemini_branding_text(item["content"])
+                elif isinstance(item.get("content"), list):
+                    _sanitize_gemini_message_content(item["content"])
+
 
 def sanitize_outbound_kwargs(agent: Any, api_kwargs: dict) -> None:
     """Outbound-request chokepoint for every built kwargs dict (main loop and iteration summary).
@@ -142,6 +189,10 @@ def sanitize_outbound_kwargs(agent: Any, api_kwargs: dict) -> None:
     ASCII-codec rejection.
     """
     _sanitize_structure_surrogates(api_kwargs)
+    model_lower = str(getattr(agent, "model", "") or "").lower()
+    provider_lower = str(getattr(agent, "provider", "") or "").lower()
+    if "gemini" in model_lower or "gemini" in provider_lower:
+        _sanitize_gemini_branding_outbound(api_kwargs)
     if agent._force_ascii_payload:
         # ``tools`` is built from ``agent.tools`` per attempt and usually aliases it; detach
         # before the in-place strip so the retry never rewrites the canonical tool schemas.
